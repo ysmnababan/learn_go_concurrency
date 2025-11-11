@@ -1,6 +1,6 @@
 # Batch Insert Benchmark
 
-This project benchmarks **single-row inserts** vs **batch inserts** in Go to measure performance differences in terms of time, memory, and allocations.
+This project benchmarks **single-row inserts**, **batch inserts**, and **concurrent single-row inserts using goroutines** in Go to measure performance differences in terms of time, memory, and allocations.
 
 ---
 
@@ -14,6 +14,9 @@ go test -benchmem -run=^$ -bench ^BenchmarkInsertSingle$ batchinsert -benchtime=
 
 # Benchmark batch inserts (each operation inserts multiple records per transaction)
 go test -benchmem -run=^$ -bench ^BenchmarkInsertBatch$ batchinsert -benchtime=60s
+
+# Benchmark single inserts using multiple goroutines
+go test -benchmem -run=^$ -bench ^BenchmarkInsertGoroutine$ batchinsert -count=5
 ````
 
 ### Notes
@@ -21,7 +24,7 @@ go test -benchmem -run=^$ -bench ^BenchmarkInsertBatch$ batchinsert -benchtime=6
 * `-run=^$` skips all regular tests (runs only benchmarks).
 * `-benchmem` includes memory allocation metrics (`B/op` and `allocs/op`).
 * `-benchtime=60s` runs each benchmark for at least 60 seconds to collect stable results.
-* `-bench ^BenchmarkInsertSingle$` and `-bench ^BenchmarkInsertBatch$` use regex to match the benchmark function names.
+* `-bench ^BenchmarkInsertSingle$`, `^BenchmarkInsertBatch$`, and `^BenchmarkInsertGoroutine$` use regex to match the benchmark function names.
 
 ---
 
@@ -31,7 +34,7 @@ go test -benchmem -run=^$ -bench ^BenchmarkInsertBatch$ batchinsert -benchtime=6
 | :--------------- | :---------------------------------------- |
 | **OS**           | Linux                                     |
 | **Architecture** | amd64                                     |
-| **CPU**          | Intel(R) Core(TM) i5-10310U CPU @ 1.70GHz | 
+| **CPU**          | Intel(R) Core(TM) i5-10310U CPU @ 1.70GHz |
 
 ---
 
@@ -71,20 +74,43 @@ ok   batchinsert   81.692s
 
 ---
 
+### Single Insert with Goroutines
+
+```
+BenchmarkInsertGoroutine-8
+    1    1263208642 ns/op    116398528 B/op    1332710 allocs/op
+    1    1386003834 ns/op    116216832 B/op    1332056 allocs/op
+    1    1249484892 ns/op    116228352 B/op    1332137 allocs/op
+    1    1649092937 ns/op    116224696 B/op    1332106 allocs/op
+    1    1386319101 ns/op    116220736 B/op    1332135 allocs/op
+PASS
+ok   batchinsert   7.122s
+```
+
+**Interpretation:**
+
+* Each concurrent insert operation took ~1.26–1.65 seconds per iteration.
+* Memory usage per operation is ~111 MB with ~1.33 million allocations.
+* Using multiple goroutines improved throughput compared to single-row sequential inserts (~9× faster per wall-clock time) while still maintaining per-operation allocation overhead.
+* Variability is observed due to scheduling and concurrent DB access.
+
+---
+
 ## 📈 Summary
 
-| Mode              | Avg Time / op | B/op   | Allocs/op | Iterations | Relative Speed |
-| ----------------- | ------------- | ------ | --------- | ---------- | -------------- |
-| **Single Insert** | ~11.52 s      | 113 MB | 1.32 M    | 6          | 1×             |
-| **Batch Insert**  | ~0.87 s       | 103 MB | 760 K     | 93         | ~13× faster    |
+| Mode                           | Avg Time / op | B/op   | Allocs/op | Iterations    | Relative Speed |
+| ------------------------------ | ------------- | ------ | --------- | ------------- | -------------- |
+| **Single Insert**              | ~11.52 s      | 113 MB | 1.32 M    | 6             | 1×             |
+| **Batch Insert**               | ~0.87 s       | 103 MB | 760 K     | 93            | ~13× faster    |
+| **Single Insert + Goroutines** | ~1.38 s       | 111 MB | 1.33 M    | 5 (per count) | ~8–9× faster   |
 
 ---
 
 ## 🧩 Conclusions
 
-* **Batch inserts** significantly reduce execution time compared to inserting rows individually.
-* Memory allocations are also lower per operation, although still substantial.
-* This confirms that batching is far more efficient for database-heavy workloads.
+* **Batch inserts** remain the most efficient for throughput and memory usage.
+* **Concurrent single-row inserts** significantly reduce wall-clock time but allocations per operation remain high.
+* Using goroutines can help improve performance without changing the database batch logic, but batching + concurrency may offer the best performance.
 
 ---
 
@@ -96,7 +122,7 @@ ok   batchinsert   81.692s
   go test -run ^$ -bench ^BenchmarkInsertBatch$ -cpuprofile cpu.prof -memprofile mem.prof
   go tool pprof -http=:8080 ./batchinsert.test cpu.prof
   ```
-* Experiment with varying batch sizes (e.g. 10, 100, 1000 rows per batch).
+* Experiment with varying batch sizes and concurrent workers.
 * Optimize allocations by reusing buffers and prepared statements.
 * Add more realistic dataset and transaction handling.
 

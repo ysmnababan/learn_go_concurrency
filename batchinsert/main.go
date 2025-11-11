@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -12,39 +11,38 @@ import (
 
 func insertConcurrent(db *gorm.DB, data []Employee, cnt int) {
 	var wg sync.WaitGroup
-
 	wg.Add(cnt)
-	fmt.Println(len(data))
-	var chs []chan Employee
-	for range cnt {
-		c := make(chan Employee, len(data)/cnt)
-		chs = append(chs, c)
+
+	channels := make([]chan Employee, cnt)
+	for i := range cnt {
+		channels[i] = make(chan Employee, len(data)/cnt)
 	}
+
+	// Distribute work
 	for i, e := range data {
 		idx := i % cnt
-		chs[idx] <- e
+		channels[idx] <- e
 	}
-	for i := range cnt {
-		close(chs[i])
-	}
-	for i := range cnt {
-		go func(ch <-chan Employee, dbs *gorm.DB) {
-			defer wg.Done()
-			session := dbs.Session(&gorm.Session{NewDB: true})
-			affectedRows := 0
-			for e := range ch {
-				res := session.Create(&e)
-				if res.Error != nil {
-					log.Println(res.Error)
-					continue
-				}
-				affectedRows++
-			}
-			fmt.Println("go routine no: ", i, affectedRows)
-		}(chs[i], db)
-	}
-	wg.Wait()
 
+	for i := range cnt {
+		close(channels[i])
+	}
+
+	// Start goroutines
+	for i := range cnt {
+		ch := channels[i] // capture i
+		go func(ch <-chan Employee) {
+			defer wg.Done()
+			session := db.Session(&gorm.Session{NewDB: true}) // create new db session for each go routine
+			for e := range ch {
+				if err := session.Create(&e).Error; err != nil {
+					log.Println(err)
+				}
+			}
+		}(ch)
+	}
+
+	wg.Wait()
 }
 func main() {
 

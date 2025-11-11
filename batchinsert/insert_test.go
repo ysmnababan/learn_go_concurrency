@@ -80,10 +80,11 @@ func BenchmarkInsertBatch(b *testing.B) {
 
 }
 func BenchmarkInsertGoroutine(b *testing.B) {
-	datas := []Employee{}
+	// Prepare data once
 	n := 10000
-	for range n {
-		emp := Employee{
+	datas := make([]Employee, n)
+	for i := 0; i < n; i++ {
+		datas[i] = Employee{
 			NIP:          uuid.NewString(),
 			Name:         "some name",
 			OrgUnit:      "org unit",
@@ -91,28 +92,31 @@ func BenchmarkInsertGoroutine(b *testing.B) {
 			Status:       "status",
 			IsActive:     true,
 		}
-		datas = append(datas, emp)
 	}
+
+	// Open DB once
+	dsn := "host=localhost user=postgres password=postgres dbname=malut port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		b.Fatal(err)
+	}
+	sqlDB, _ := db.DB()
+	defer sqlDB.Close()
+
+	// Configure connections
+	gcnt := 25
+	sqlDB.SetMaxIdleConns(25)
+	sqlDB.SetMaxOpenConns(50)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
+		// Clean up table outside timed section
 		b.StopTimer()
-		dsn := "host=localhost user=postgres password=postgres dbname=malut port=5432 sslmode=disable TimeZone=Asia/Shanghai"
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		sqlDB, _ := db.DB()
-		gcnt := 5
-		sqlDB.SetMaxIdleConns(gcnt)
-		sqlDB.SetMaxOpenConns(gcnt)
-		sqlDB.SetConnMaxLifetime(time.Hour)
-		db.Where("id is not null").Delete(&Employee{})
+		db.Where("id IS NOT NULL").Delete(&Employee{})
 		b.StartTimer()
 
 		insertConcurrent(db, datas, gcnt)
-		sqlDB.Close()
 	}
-	// db.Where("id is not null").Delete(&Employee{})
-
 }
