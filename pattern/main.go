@@ -5,5 +5,6 @@ func main() {
 
 	// simpleTickerPattern()
 
-	tickerWithCancel()
+	//tickerWithCancel()
+	semaphorePattern()
 }
