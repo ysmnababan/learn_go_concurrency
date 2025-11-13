@@ -3,5 +3,7 @@ package main
 func main() {
 	// simpleSelectPattern()
 
-	simpleTickerPattern()
+	// simpleTickerPattern()
+
+	tickerWithCancel()
 }
