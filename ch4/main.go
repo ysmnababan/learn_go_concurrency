@@ -2,5 +2,6 @@ package main
 
 func main() {
 	// demoDone()
-	randStreamDemo()
+	// randStreamDemo()
+	errorHandlingDemo()
 }
