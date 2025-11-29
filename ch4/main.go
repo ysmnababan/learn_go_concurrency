@@ -7,5 +7,6 @@ func main() {
 
 	// pipelinesDemo()
 	// generatorsDemo()
-	repeatFuncDemo()
+	// repeatFuncDemo()
+	orDoneDemo()
 }
