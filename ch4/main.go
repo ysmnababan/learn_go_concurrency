@@ -8,5 +8,6 @@ func main() {
 	// pipelinesDemo()
 	// generatorsDemo()
 	// repeatFuncDemo()
-	orDoneDemo()
+	// orDoneDemo()
+	teeDemo()
 }
